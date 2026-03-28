@@ -1,23 +1,33 @@
-name: C/C++ CI
-
+name: Build & Deploy Game to GitHub Pages
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  push: # 推送代码自动触发
+    branches: [ main ]
+  workflow_dispatch: # 支持手动触发
 
 jobs:
-  build:
-
+  build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
-    - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 配置Emscripten编译环境
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: 编译为WASM网页
+        run: |
+          mkdir -p docs
+          # 这里你的代码文件名如果不是main.cpp，改成你自己的名字
+          emcc main.cpp -o docs/index.html \
+            -s USE_GLFW=3 -s USE_RAYLIB=1 \
+            -s ASYNCIFY -s ALLOW_MEMORY_GROWTH=1 \
+            # 这里改成你自己的资源文件，保证路径对应
+            --preload-file wxyy.mp3 --preload-file songs
+
+      - name: 部署到GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
