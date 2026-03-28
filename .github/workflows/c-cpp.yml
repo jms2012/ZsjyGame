@@ -18,7 +18,7 @@ jobs:
 
       # 新增：拉取Raylib 5.0稳定版源码
       - name: 拉取Raylib源码
-        run: git clone --depth 1 --branch 5.0.0 https://github.com/raysan5/raylib.git raylib
+        run: git clone --depth 1 --branch v5.0.0 https://github.com/raysan5/raylib.git raylib
 
       # 编译：直接把Raylib和你的游戏代码一起编译，比旧写法更稳定
       - name: 编译为网页WASM
