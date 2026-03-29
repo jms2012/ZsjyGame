@@ -20,7 +20,7 @@ float spread=5.0f;
 int bpershotmulti=1;
 int bcrossmulti=1;
 bool blexplode=0;
-Sound wxyy;
+//Sound wxyy;
 Rectangle shop={SCREEN_WIDTH-100,20,90,50};
 enum Upgrade{
 	FULL_HEAL=0,
@@ -212,7 +212,7 @@ void Damage(){
 						b.dmg/=5;
 					}
 					if(e.health<=0){
-						PlaySound(wxyy);
+						//PlaySound(wxyy);
 						player.exp+=1;
 						remove(enemies.begin(),enemies.end(),e);
 						enemies.pop_back();
@@ -495,11 +495,11 @@ int main(){
 	unsigned long long gametime=0;
 	srand(time(0));
 	InitAudioDevice();
-	wxyy=LoadSound("wxyy.mp3");
+	//wxyy=LoadSound("wxyy.mp3");
 	SetTargetFPS(FPS);
 //	Sound bgm=LoadSound("sya.mp3");
 	Sound bgms[11];
-	LoadSongs(bgms,"songs/bgm_",0);
+	LoadSongs(bgms,"songs/bgm_",4);
 //	PlaySound(bgm);
 	InitWindow(SCREEN_WIDTH,SCREEN_HEIGHT,"zsjy is game 张顺甲鱼是游戏");
 	bool flag=0;
