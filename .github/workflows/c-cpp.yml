@@ -34,7 +34,12 @@ jobs:
             -I./raylib/src \
             -DPLATFORM_WEB \
             -s USE_GLFW=3 \
-            -s TOTAL_MEMORY=256MB \
+            -s TOTAL_MEMORY=512MB \  # 256MB (从128MB增大；如果还不够，试536870912=512MB)
+            -s ALLOW_MEMORY_GROWTH=1 \   # 允许动态增长，防止硬溢出
+            -s INITIAL_MEMORY=16777216 \ # 初始16MB，渐增
+            -s ASSERTIONS=2 \            # 启用详细断言，Console会显示具体越界位置
+            -s SAFE_HEAP=1 \             # 堆检查，捕获无效指针
+            -s ABORTING_MALLOC=0 \       # 失败时不立即崩溃，继续运行以调试
             -s EXPORTED_FUNCTIONS=['_main'] \
             -s EXPORTED_RUNTIME_METHODS=['ccall'] \
             --shell-file raylib/src/shell.html \
