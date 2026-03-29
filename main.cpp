@@ -499,7 +499,7 @@ int main(){
 	SetTargetFPS(FPS);
 //	Sound bgm=LoadSound("sya.mp3");
 	Sound bgms[11];
-	LoadSongs(bgms,"songs/bgm_",4);
+	LoadSongs(bgms,"songs/bgm_",0);
 //	PlaySound(bgm);
 	InitWindow(SCREEN_WIDTH,SCREEN_HEIGHT,"zsjy is game 张顺甲鱼是游戏");
 	bool flag=0;
