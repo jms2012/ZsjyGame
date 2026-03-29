@@ -1,40 +1,50 @@
-name: Build & Deploy Game to GitHub Pages
+name: Build and Deploy Raylib Game
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # 支持手动触发编译
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: 拉取你的项目代码
+      - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: 配置Emscripten编译环境
+      # 自动拉取Raylib源码（如果你已经把Raylib放到项目里可以注释掉这行）
+      - name: Clone Raylib if missing
+        if: ${{ !exists('raylib') }}
+        run: git clone --depth 1 https://github.com/raysan5/raylib.git raylib
+
+      - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: latest
 
-      # 新增：拉取Raylib 5.0稳定版源码
-      - name: 拉取Raylib源码
-        run: git clone --depth 1 --branch 5.0 https://github.com/raysan5/raylib.git raylib
-
-      # 编译：直接把Raylib和你的游戏代码一起编译，比旧写法更稳定
-      - name: 编译为网页WASM
+      - name: Compile to WebAssembly
         run: |
           mkdir -p docs
-          # ⚠️ 把下面的main.cpp改成你自己的代码文件名，资源也改成你项目里实际存在的，没有的资源删掉对应行即可
-          emcc main.cpp raylib/src/*.c -o docs/index.html \
-            -DPLATFORM_WEB \
-            -I./raylib/src \
-            -s USE_GLFW=3 \
-            -s ASYNCIFY \
-            -s ALLOW_MEMORY_GROWTH=1 \
-            -s EXPORTED_FUNCTIONS=['_main'] \
-            --preload-file wxyy.mp3
+          # 1. 编译Raylib核心（不编译自带的GLFW，用Emscripten自带的Web版GLFW，解决符号问题）
+          emcc -c raylib/src/rcore.c raylib/src/rshapes.c raylib/src/rtextures.c \
+            raylib/src/rtext.c raylib/src/rmodels.c raylib/src/raudio.c \
+            -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2 -I./raylib/src -Os
 
-      - name: 部署到GitHub Pages
+          # 2. 编译你的游戏，输出网页文件到docs文件夹
+          # 如果有音频/图片资源，在末尾加 --preload-file 你的资源文件名 即可
+          emcc main.cpp *.o -o docs/index.html \
+            -I./raylib/src \
+            -DPLATFORM_WEB \
+            -s USE_GLFW=3 \
+            -s TOTAL_MEMORY=64MB \
+            -s EXPORTED_FUNCTIONS=['_main'] \
+            -s EXPORTED_RUNTIME_METHODS=['ccall'] \
+            --shell-file raylib/src/shell.html \
+            -Os
+
+      # 自动部署到GitHub Pages
+      - name: Deploy to Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
