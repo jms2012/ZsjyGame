@@ -4,6 +4,7 @@
 #include<algorithm>
 #include<raylib.h>
 #include<raymath.h>
+#define M_PI 3.1415926
 using namespace std;
 const int SCREEN_WIDTH=1600;
 const int SCREEN_HEIGHT=900;
@@ -87,6 +88,9 @@ struct Player{
 	}
 }player;
 enum GameState{RUNNING,UPGRADING,DEAD,PAUSE,SHOP}gamestate=RUNNING;
+bool operator==(Vector2 a,Vector2 b){
+	return a.x==b.x&&a.y==b.y;
+}
 bool rmv(const Bullet b){
 	return b.des<=0||b.cross<=0;
 }
@@ -266,7 +270,7 @@ void GenerateEnemy(int times){
 	spd*=enemylevel,health*=enemylevel*enemylevel,siz*=enemylevel;
 	spd=min(spd,7);
 	siz=min(siz,40);
-	enemies.push_back({{x,y},health,health,spd,siz,type});
+	enemies.push_back({{(float)x,(float)y},health,health,spd,siz,type});
 	enemylevel+=0.007;
 }
 void Shoot(){
@@ -359,7 +363,7 @@ void GenerateItems(int times){
 	if(times%(FPS*20)==0){
 		Item it;
 		int x=rand()%SCREEN_WIDTH,y=rand()%SCREEN_HEIGHT;
-		it.pos={x,y};
+		it.pos={(float)x,(float)y};
 		it.up=ups[rand()%UpgradingSize];
 		items.push_back(it);
 	}
@@ -412,7 +416,7 @@ void DrawUpgrade(bool flag){
 	}
 	Rectangle rec[3];
 	for(int i=0;i<3;i++){
-		rec[i]={100,100+200*i,SCREEN_WIDTH-200,100};
+		rec[i]={100,float(100+200*i),SCREEN_WIDTH-200,100};
 		DrawRectangleRec(rec[i],WHITE);
 		string text;
 		switch (upgrade[i]) {
