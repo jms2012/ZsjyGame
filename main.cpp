@@ -88,9 +88,6 @@ struct Player{
 	}
 }player;
 enum GameState{RUNNING,UPGRADING,DEAD,PAUSE,SHOP}gamestate=RUNNING;
-bool operator==(Vector2 a,Vector2 b){
-	return a.x==b.x&&a.y==b.y;
-}
 bool rmv(const Bullet b){
 	return b.des<=0||b.cross<=0;
 }
