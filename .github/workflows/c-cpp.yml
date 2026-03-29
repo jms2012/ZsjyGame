@@ -35,6 +35,7 @@ jobs:
             -DPLATFORM_WEB \
             -s USE_GLFW=3 \
             -s TOTAL_MEMORY=512MB \
+            -s ASYNCIFY=1 \
             -s EXPORTED_FUNCTIONS=['_main'] \
             -s EXPORTED_RUNTIME_METHODS=['ccall'] \
             --shell-file raylib/src/shell.html \
