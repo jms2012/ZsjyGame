@@ -10,12 +10,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      # 自动拉取Raylib源码（如果你已经把Raylib放到项目里可以注释掉这行）
-      - name: Clone Raylib if missing
-        if: ${{ !exists('raylib') }}
+      # 如果你已经把raylib源码放到自己项目里了，把下面这一整行注释掉就行
+      - name: Clone Raylib source code
         run: git clone --depth 1 https://github.com/raysan5/raylib.git raylib
 
       - name: Setup Emscripten
@@ -26,13 +23,13 @@ jobs:
       - name: Compile to WebAssembly
         run: |
           mkdir -p docs
-          # 1. 编译Raylib核心（不编译自带的GLFW，用Emscripten自带的Web版GLFW，解决符号问题）
+          # 编译适配Web的Raylib，解决之前的GLFW符号未定义错误
           emcc -c raylib/src/rcore.c raylib/src/rshapes.c raylib/src/rtextures.c \
             raylib/src/rtext.c raylib/src/rmodels.c raylib/src/raudio.c \
             -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2 -I./raylib/src -Os
 
-          # 2. 编译你的游戏，输出网页文件到docs文件夹
-          # 如果有音频/图片资源，在末尾加 --preload-file 你的资源文件名 即可
+          # 编译你的游戏主程序
+          # 如果有音频/图片资源，在末尾`-Os`之前加上：--preload-file 你的资源文件名
           emcc main.cpp *.o -o docs/index.html \
             -I./raylib/src \
             -DPLATFORM_WEB \
@@ -43,8 +40,7 @@ jobs:
             --shell-file raylib/src/shell.html \
             -Os
 
-      # 自动部署到GitHub Pages
-      - name: Deploy to Pages
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
