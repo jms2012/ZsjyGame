@@ -38,8 +38,8 @@ jobs:
             -s EXPORTED_FUNCTIONS=['_main'] \
             -s EXPORTED_RUNTIME_METHODS=['ccall'] \
             --shell-file raylib/src/shell.html \
+            --preload-file wxyy.mp3 \
             -Os
-            --preload-file wxyy.mp3
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
