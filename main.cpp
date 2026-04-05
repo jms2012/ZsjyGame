@@ -5,7 +5,7 @@
 #include<raylib.h>
 #include<raymath.h>
 using namespace std;
-const int SCREEN_WIDTH=1800;
+const int SCREEN_WIDTH=1920;
 const int SCREEN_HEIGHT=SCREEN_WIDTH/16.0*9;
 const int FPS=60;
 float bsizemulti=1.0f;
@@ -299,8 +299,8 @@ void DrawBulletUpgrade(bool flag){
 					bulletType=blt;
 					switch(bulletType){
 					case FIRE:
-						btypedurat=0.5f;
-						btypedmgmulti=0.2f;
+						btypedurat=1.0f;
+						btypedmgmulti=1.0f;
 						break;
 					case ICE:
 						btypedurat=0.5f;
@@ -648,7 +648,7 @@ void GenerateEnemy(int times){
 		e.candivid=cn;
 		e.oldspeed=e.spd;
 		enemies.push_back(e);
-		enemylevel+=0.007;
+		enemylevel+=0.005;
 	}
 }
 void Shoot(){
