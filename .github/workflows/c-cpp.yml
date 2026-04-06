@@ -40,7 +40,7 @@ jobs:
             -s EXPORTED_RUNTIME_METHODS=['ccall'] \
             --shell-file raylib/src/shell.html \
             --preload-file songs \
-            -Os
+            -Os 
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
