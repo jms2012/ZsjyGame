@@ -39,7 +39,6 @@ jobs:
             -s EXPORTED_FUNCTIONS=['_main'] \
             -s EXPORTED_RUNTIME_METHODS=['ccall'] \
             --shell-file raylib/src/shell.html \
-            --preload-file songs/bgm_01.mp3 \
             -Os 
 
       - name: Deploy to GitHub Pages
