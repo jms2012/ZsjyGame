@@ -14,7 +14,10 @@ jobs:
       # 如果你已经把raylib源码放到自己项目里了，把下面这一整行注释掉就行
       - name: Clone Raylib source code
         run: git clone --depth 1 https://github.com/raysan5/raylib.git raylib
-
+      # 添加：克隆 raygui 源码
+      - name: Clone Raygui source code
+        run: git clone --depth 1 https://github.com/raysan5/raygui.git raygui
+        
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
