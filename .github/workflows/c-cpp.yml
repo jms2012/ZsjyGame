@@ -17,7 +17,7 @@ jobs:
       # 添加：克隆 raygui 源码
       - name: Clone Raygui source code
         run: git clone --depth 1 https://github.com/raysan5/raygui.git raygui
-        
+
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
@@ -35,6 +35,7 @@ jobs:
           # 如果有音频/图片资源，在末尾`-Os`之前加上：--preload-file 你的资源文件名
           emcc main.cpp *.o -o docs/index.html \
             -I./raylib/src \
+            -I./raygui/src \
             -DPLATFORM_WEB \
             -s USE_GLFW=3 \
             -s TOTAL_MEMORY=512MB \
