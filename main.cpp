@@ -584,6 +584,7 @@ void Skill(){
 				if(CheckCollisionCircleLine(e.pos,e.siz,player.pos,Vector2Add(player.pos,endpos))){
 					e.health-=5*player.currentgun.dmg*bdmgmulti*bpershotmulti;
 					EnemyDamaging(e,5*player.currentgun.dmg*bdmgmulti*bpershotmulti,j);
+					player.health+=player.currentgun.dmg*bdmgmulti*bpershotmulti/2;
 				}
 			}
 			player.pos=Vector2Add(player.pos,endpos);
