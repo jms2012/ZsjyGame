@@ -61,9 +61,6 @@ struct Bullet{
 	int spd,dmg;
 	bool active=1;
 	int cross;
-	BulletType btype=bulletType;
-	float duration,cnt;
-	float damage,effect;
 };
 struct Gun{
 	string name;
@@ -108,6 +105,9 @@ struct Player{
 	int skillMaxCD=FPS*10,skillCD;
 	void Keep(){
 		pos={Clamp(pos.x,20,SCREEN_WIDTH-20),Clamp(pos.y,20,SCREEN_HEIGHT-20)};
+	}
+	void Move(){
+		
 	}
 }player;
 enum GameState{
