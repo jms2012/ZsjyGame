@@ -2,10 +2,12 @@
 #include<iostream>
 #include<vector>
 #include<algorithm>
+#include<random>
 #include"raylib.h"
 #include"raymath.h"
 #define RAYGUI_IMPLEMENTATION
 #include"raygui.h"
+#define random_shuffle(start, end) std::shuffle(start, end, std::mt19937(std::random_device{}()))
 using namespace std;
 const int SCREEN_WIDTH=3200;
 const int SCREEN_HEIGHT=SCREEN_WIDTH/16.0*9;
