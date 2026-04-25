@@ -2,10 +2,10 @@
 #include<iostream>
 #include<vector>
 #include<algorithm>
-#include<raylib.h>
-#include<raymath.h>
+#include"raylib.h"
+#include"raymath.h"
 #define RAYGUI_IMPLEMENTATION
-#include<raygui.h>
+#include"raygui.h"
 using namespace std;
 const int SCREEN_WIDTH=3200;
 const int SCREEN_HEIGHT=SCREEN_WIDTH/16.0*9;
@@ -1244,6 +1244,11 @@ void DrawUpgrade(bool flag){
 			}
 			
 		}
+	}
+}
+void RandomEvent(int times){
+	if(times%100==0){
+		
 	}
 }
 int main(){
