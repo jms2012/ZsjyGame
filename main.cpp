@@ -4,10 +4,13 @@
 #include<algorithm>
 #include<raylib.h>
 #include<raymath.h>
+#define RAYGUI_IMPLEMENTATION
+#include<raygui.h>
 using namespace std;
-const int SCREEN_WIDTH=1920;
+const int SCREEN_WIDTH=3200;
 const int SCREEN_HEIGHT=SCREEN_WIDTH/16.0*9;
 const int FPS=60;
+const float DMGNUM_YSPD=-7.0f;
 float bsizemulti=1.0f;
 float bdmgmulti=1.0f;
 float enemylevel=1.0f;
@@ -19,9 +22,11 @@ float spread=2.5f;
 int bpershotmulti=1;
 int bcrossmulti=1;
 bool blexplode=0;
+bool dmgnum=1;
 Sound wxyy,upgr;
 Sound bgms[11],kills[11];
 Rectangle shop={SCREEN_WIDTH-100,20,90,50};
+unsigned long long gametime=0;
 enum BulletType{
 	NONE,
 	FIRE,
@@ -54,11 +59,29 @@ const int UpgradingSize=9;
 float btypedurat=0.0f;
 int btypecnt=0;
 float btypedmgmulti=0.0f,btypeefc=0.0f;
+struct Button{
+	Rectangle rec;
+	string text;
+};
+struct Character{
+	string name;
+	int skillindex;
+	float maxhealth,spd;
+	int skillmaxcd;
+}characters[11]={
+	{"ZSJY",0,1000,5,FPS*15},
+	{"LTY",1,800,6,FPS*6},
+	{"CZH",2,1200,4,FPS*10},
+	{"ABC",3,900,5,FPS*50},
+	{"LDC",4,1500,3.5f,FPS*60/7},
+	{"WXYY",5,700,6,FPS*10},
+	{"910",6,700,7.5f,FPS*15}
+};
 struct Bullet{
 	Vector2 pos;
 	float xspd,yspd;
-	int des=FPS*5;
-	int spd,dmg;
+	int des=FPS*12;
+	float spd,dmg;
 	bool active=1;
 	int cross;
 };
@@ -87,39 +110,68 @@ struct Particle{
 	Color col;
 	float siz;
 };
+struct DamageNumber{
+	float num;
+	Vector2 pos,spd;
+};
+struct Turret{
+	Vector2 pos;
+	int des=20*FPS;
+	int scd;
+};
+struct Goods{
+	Gun gun;
+	int cost;
+};
 //Texture zsTexture=LoadTexture("cat.png");//,ldtexture=LoadTexture("ld.jpg");
 vector<Bullet>bullets;
 vector<Enemy>enemies;
 vector<Item>items;
 vector<pair<Vector2,int>>explosions;
 vector<Particle>particles;
+vector<DamageNumber>damagenumbers;
+vector<Turret>turrets;
+vector<Goods>goods;
 struct Player{
 	//Image img=LoadImage("cat.png");
 	//Texture tex=LoadTextureFromImage(img);
+	Character ch=characters[0];
 	Vector2 pos={SCREEN_WIDTH/2,SCREEN_HEIGHT/2};
-	float spd=5;
 	int scd=0;
-	Gun currentgun={"wxyylikes91999",FPS/6,10,0,17};
-	float health=1000,MaxHealth=1000;
+	Gun currentgun={"wxyylikeslgggg",FPS/6,10,0,17};
+	vector<Gun>guns={currentgun};
+	int gunindex=0;
+	float health=ch.maxhealth,MaxHealth=ch.maxhealth;
 	int level=1,exp=0,upexp=5;
-	int skillMaxCD=FPS*10,skillCD;
+	int skillCD;
+	int gold=0;
 	void Keep(){
 		pos={Clamp(pos.x,20,SCREEN_WIDTH-20),Clamp(pos.y,20,SCREEN_HEIGHT-20)};
 	}
 	void Move(){
 		
 	}
+	void Reset(){
+		ch=characters[0];gold=0;
+		pos={SCREEN_WIDTH/2,SCREEN_HEIGHT/2};
+		scd=0;gunindex=0;health=ch.maxhealth,MaxHealth=ch.maxhealth;
+		currentgun={"wxyylikeslgggg",FPS/6,10,0,17};
+		level=1,exp=0,upexp=5;
+	}
 }player;
 enum GameState{
+	START,
+	CHOOSE_CHARACTER,
 	RUNNING,
 	UPGRADING,
 	DEAD,
 	PAUSE,
 	SHOP,
 	BULLET_UPGRADING
-}gamestate=RUNNING;
-bool rmv(const Bullet b){
-	return b.des<=0||b.cross<=0;
+}gamestate=START;
+template<typename T>
+bool rmv(const T a){
+	return a.des<=0;
 }
 /*Vector2 TurnDeg(Vector2 from,Vector2 to,float deg){
 float dist=Vector2Distance(from,to);
@@ -144,6 +196,77 @@ void CreateParticle(Vector2 pos,float spd,Color col,int cnt=10,float siz=5){
 		tmp=TurnDeg({0,0},tmp,deg+rand()%(spr+1)-spr/2.0);
 		particles.push_back({pos,tmp,col,siz});
 		deg+=360.0/cnt;
+	}
+}
+void ReadLeder(){
+	
+}
+void Init(){
+	bsizemulti=1.0f;
+	bdmgmulti=1.0f;
+	enemylevel=1.0f;
+	shotspeedmulti=1.0f;
+	bhealmulti=0.0f;
+	blexplodesizmulti=1.0f;
+	blexplodedmgmulti=0.1f;
+	spread=2.5f;
+	bpershotmulti=1;
+	bcrossmulti=1;
+	goods={
+		{{"MP9",FPS/14,14,1,22},100},
+		{{"AWP",int(FPS/1.5f),15,1,152},475},
+		{{"LF",FPS/19,19,1,9},91}
+	};
+	btypedurat=0.0f;
+	btypecnt=0;
+	btypedmgmulti=0.0f,btypeefc=0.0f;
+	gamestate=START;
+	bullets.clear();
+	enemies.clear();
+	items.clear();
+	particles.clear();
+	damagenumbers.clear();
+	turrets.clear();
+	player.Reset();
+	unsigned long long gametime=0;
+}
+void EnemyDamaging(Enemy &e,float damage,int &idx){
+	e.health-=damage;
+	damagenumbers.push_back({(float)-damage,e.pos,{float(rand()%10-5),DMGNUM_YSPD}});
+	if(e.health<=0){
+		CreateParticle(e.pos,e.spd,RED,10,e.siz/5);
+		Sound kil=kills[rand()%2];
+		SetSoundPitch(kil,1.0f+float(rand()%10)/10-0.5f);
+		PlaySound(kil);
+		if(e.candivid){
+			Enemy divid;
+			float spd=e.spd-1.0f,health=e.MaxHealth*1.5f,siz=e.siz*0.6;
+			divid.spd=spd,divid.health=divid.MaxHealth=health;
+			divid.siz=siz;
+			divid.type=e.type;
+			divid.oldspeed=divid.spd;
+			for(int k=1;k<=3;k++){
+				divid.pos=TurnDeg(e.pos,Vector2Add(e.pos,{0,e.siz}),rand()%360);
+				enemies.push_back(divid);
+			}
+		}
+		if(e.isBoss){
+			player.exp+=10*enemylevel;
+			player.gold+=10*enemylevel;
+			gamestate=BULLET_UPGRADING;
+		}else{
+			player.exp+=enemylevel;
+			player.gold+=enemylevel;
+		}
+		//auto it = std::find(enemies.begin(), enemies.end(), e);
+		//enemies.erase(it);
+		enemies.erase(enemies.begin()+idx);
+		idx--;
+		return;
+	}
+	if(e.type==4){
+		e.spd=e.oldspeed=2*enemylevel;
+		e.spd=min(10.0f,e.spd);
 	}
 }
 void Draw(){
@@ -195,18 +318,27 @@ void Draw(){
 		DrawRectangle(e.pos.x-20,e.pos.y-30,40,5,GRAY);
 		DrawRectangle(e.pos.x-20,e.pos.y-30,1.0*e.health/e.MaxHealth*40,5,GREEN);
 	}
+	for(auto t:turrets){
+		DrawCircleV(t.pos,20,BROWN);
+		DrawText(TextFormat("%.d",t.des/60),t.pos.x-10,t.pos.y-5,10,BLACK);
+	}
 	for(auto it:items){
 		DrawCircle(it.pos.x,it.pos.y,10,GREEN);
 	}
 	for(auto ex:explosions){
 		DrawCircle(ex.first.x,ex.first.y,ex.second,YELLOW);
 	}
+	for(auto dn:damagenumbers){
+		string text;
+		if(dn.num>0){
+			text="+";
+		}
+		DrawText((text+TextFormat("%.1f",dn.num)).c_str(),dn.pos.x,dn.pos.y,20,BLACK);
+	}
 	DrawCircle(player.pos.x,player.pos.y,20,BLUE);
 	DrawRectangle(player.pos.x-20,player.pos.y-30,40,5,GRAY);
 	DrawRectangle(player.pos.x-20,player.pos.y-30,1.0*player.health/player.MaxHealth*40,5,GREEN);
-	DrawRectangle(player.pos.x-20,player.pos.y-35,40,5,GRAY);
-	DrawRectangle(player.pos.x-20,player.pos.y-35,1.0*player.exp/player.upexp*40,5,SKYBLUE);
-	DrawText("ZSJY",player.pos.x-10,player.pos.y-5,10,BLACK);
+	DrawText(player.ch.name.c_str(),player.pos.x-10,player.pos.y-5,10,BLACK);
 	DrawText(TextFormat("Level:%d EXP:%d/%d",player.level,player.exp,player.upexp),10,10,30,BLACK);
 	DrawText(TextFormat("Weapon:%s Damage:%.1f Shot Speed:%.1f",
 		player.currentgun.name.c_str(),
@@ -214,9 +346,59 @@ void Draw(){
 		FPS/player.currentgun.shootcd*shotspeedmulti),10,50,30,BLACK);
 	DrawText(TextFormat("HP:%.1f/%.1f Speed:%.1f",
 		player.health,player.MaxHealth,
-		player.spd),10,90,30,BLACK);
-	DrawRectangleRec(shop,GRAY);
-	DrawText("Shop",SCREEN_WIDTH-100,20,30,BLACK);
+		player.ch.spd),10,90,30,BLACK);
+	DrawFPS(SCREEN_WIDTH/2,50);
+}
+Rectangle startbutton={SCREEN_WIDTH/2-75,SCREEN_HEIGHT/2-25,150,50};
+Rectangle quitbutton={SCREEN_WIDTH/2-75,SCREEN_HEIGHT/2+40,150,50};
+Button buttons[11]={
+	{{SCREEN_WIDTH/2-75,SCREEN_HEIGHT/2-25,150,50},"Start"},
+	{{SCREEN_WIDTH/2-75,SCREEN_HEIGHT/2+40,150,50},"Exit"}
+};
+void DrawStartMenu(){
+	ClearBackground(RAYWHITE);
+	DrawText("Zsjy is game",SCREEN_WIDTH/2-100,100,50,BLACK);
+	for(int i=0;i<2;i++){
+		if(GuiButton(buttons[i].rec,buttons[i].text.c_str())){
+			switch (i) {
+			case 0:
+				gamestate=CHOOSE_CHARACTER;
+				break;
+			case 1:
+				exit(0);
+				break;
+			}
+		}
+	}
+	/*DrawRectangleRec(startbutton,GRAY);
+	DrawRectangleRec(quitbutton,GRAY);
+	DrawText("Start",startbutton.x+30,startbutton.y+10,25,BLACK);
+	DrawText("Quit",quitbutton.x+30,quitbutton.y+10,25,BLACK);
+	if(CheckCollisionPointRec(GetMousePosition(),startbutton)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+	gamestate=RUNNING;
+	}else if(CheckCollisionPointRec(GetMousePosition(),quitbutton)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+	exit(0);
+	}*/
+}
+void DrawCharacterMenu(){
+	Button chs[108]={
+		{{SCREEN_WIDTH/2-75,SCREEN_HEIGHT/2-25,150,50},characters[0].name},
+		{{SCREEN_WIDTH/2-75,SCREEN_HEIGHT/2+40,150,50},characters[1].name},
+		{{SCREEN_WIDTH/2-75,SCREEN_HEIGHT/2+105,150,50},characters[2].name},
+		{{0,0},characters[3].name}
+	};
+	ClearBackground(RAYWHITE);
+	int choose=-1;
+	for(int i=0;i<7;i++){
+		chs[i].rec={float(100+250*(i%3)),float(100+150*(i/3)),150,50};
+		chs[i].text=characters[i].name;
+		if(GuiButton(chs[i].rec,chs[i].text.c_str())){
+			choose=i;
+			gamestate=RUNNING;
+		}
+	}
+	player.ch=characters[choose];
+	player.health=player.MaxHealth=player.ch.maxhealth;
 }
 BulletType blt;
 int tmp=rand()%2;
@@ -234,6 +416,7 @@ void DrawBulletUpgrade(bool flag){
 	case LIGHTNING:
 		ClearBackground(PURPLE);
 	}
+	DrawText("Boss killed!",100,50,50,BLACK);
 	Rectangle rec[3];
 	if(!flag){
 		blt=BulletType(rand()%3+1);
@@ -300,11 +483,11 @@ void DrawBulletUpgrade(bool flag){
 					switch(bulletType){
 					case FIRE:
 						btypedurat=1.0f;
-						btypedmgmulti=1.0f;
+						btypedmgmulti=0.5f;
 						break;
 					case ICE:
 						btypedurat=0.5f;
-						btypeefc=0.2f;
+						btypeefc=0.35f;
 						break;
 					case LIGHTNING:
 						btypedmgmulti=0.2f;
@@ -351,64 +534,96 @@ void DrawBulletUpgrade(bool flag){
 void Skill(){
 	player.skillCD--;
 	player.skillCD=max(0,player.skillCD);
+	Vector2 playerToMouse = Vector2Subtract(GetMousePosition(), player.pos); // 获取玩家到鼠标的向量
+	playerToMouse = Vector2Normalize(playerToMouse); // 归一化，使其长度为1
+	Vector2 endpos = Vector2Scale(playerToMouse, 500.0f); 
 	if(IsKeyDown(KEY_SPACE)){
-		if(player.skillCD>0){
-			DrawCircle(player.pos.x,player.pos.y,400,{230,41,55,128});
-		}else{
-			DrawCircle(player.pos.x,player.pos.y,400,{0,121,241,128});
+		Color col=(player.skillCD>0)?Color({230,41,55,128}):Color({0,121,241,128});
+		switch (player.ch.skillindex) {
+		case 0:
+			DrawCircle(player.pos.x,player.pos.y,400,col);
+			break;
+		case 1:
+		case 3:
+			DrawCircleV(GetMousePosition(),20,col);
+			break;
+		case 2:
+			DrawLineEx(player.pos,Vector2Add(player.pos,endpos),40,col);
+			break;
+		case 5:
+			DrawCircleV(GetMousePosition(),200,col);
+			break;
+		case 6:
+			DrawLineEx(player.pos,Vector2Add(player.pos,Vector2Scale(playerToMouse,10000.0f)),5,col);
+			break;
 		}
 	}
 	if(IsKeyReleased(KEY_SPACE)&&player.skillCD==0){
-		player.skillCD=player.skillMaxCD;
-		int i=0;
-		for(int j=0;j<enemies.size();j++){
-			auto &e=enemies[j];
-			if(CheckCollisionCircles(player.pos,400,e.pos,e.siz)){
-				e.health-=10*player.currentgun.dmg*bdmgmulti*bpershotmulti;
-				if(e.health<=0){
-					CreateParticle(e.pos,e.spd,RED,10,e.siz/5);
-					Sound kil=kills[rand()%2];
-					SetSoundPitch(kil,1.0f+float(rand()%10)/10-0.5f);
-					PlaySound(kil);
-					if(e.type==5&&e.candivid){
-						Enemy divid;
-						float spd=e.spd-1.0f,health=e.MaxHealth*1.5f,siz=e.siz*0.6;
-						divid.spd=spd,divid.health=divid.MaxHealth=health;
-						divid.siz=siz;
-						divid.type=e.type;
-						for(int i=1;i<=4;i++){
-							divid.pos=TurnDeg(e.pos,Vector2Add(e.pos,{0,e.siz}),rand()%360);
-							enemies.push_back(divid);
-						}
-					}
-					if(e.isBoss){
-						player.exp+=10*enemylevel;
-						gamestate=BULLET_UPGRADING;
-					}else{
-						player.exp+=enemylevel;
-					}
-					//auto it = std::find(enemies.begin(), enemies.end(), e);
-					//enemies.erase(it);
-					enemies.erase(enemies.begin()+j);
-					j--;
-					continue;
-				}
-				if(e.type==4){
-					e.spd=e.oldspeed=2*enemylevel;
-					e.spd=min(10.0f,e.spd);
+		player.skillCD=player.ch.skillmaxcd;
+		switch (player.ch.skillindex) {
+		case 0:
+			for(int j=0;j<enemies.size();j++){
+				auto &e=enemies[j];
+				if(CheckCollisionCircles(player.pos,400,e.pos,e.siz)){
+					//e.health-=10*player.currentgun.dmg*bdmgmulti*bpershotmulti;
+					EnemyDamaging(e,10*player.currentgun.dmg*bdmgmulti*bpershotmulti,j);
 				}
 			}
+			break;
+		case 1:
+			player.pos=GetMousePosition();
+			break;
+		case 2:
+			//Vector2 playerToMouse = Vector2Subtract(GetMousePosition(), player.pos); // 获取玩家到鼠标的向量
+			//playerToMouse = Vector2Normalize(playerToMouse); // 归一化，使其长度为1
+			//Vector2 endpos = Vector2Scale(playerToMouse, 500.0f); 
+			for(int j=0;j<enemies.size();j++){
+				auto &e=enemies[j];
+				if(CheckCollisionCircleLine(e.pos,e.siz,player.pos,Vector2Add(player.pos,endpos))){
+					e.health-=5*player.currentgun.dmg*bdmgmulti*bpershotmulti;
+					EnemyDamaging(e,5*player.currentgun.dmg*bdmgmulti*bpershotmulti,j);
+				}
+			}
+			player.pos=Vector2Add(player.pos,endpos);
+			break;
+		case 3:
+			turrets.push_back({GetMousePosition()});
+			break;
+		case 4:
+			player.health+=player.MaxHealth/7;
+			damagenumbers.push_back({player.MaxHealth/7,player.pos,{5,DMGNUM_YSPD}});
+			break;
+		case 5:
+			for(int j=0;j<enemies.size();j++){
+				auto &e=enemies[j];
+				if(CheckCollisionCircles(GetMousePosition(),200,e.pos,e.siz)){
+					//e.health-=10*player.currentgun.dmg*bdmgmulti*bpershotmulti;
+					e.spd+=0.5f;
+					EnemyDamaging(e,e.MaxHealth/2,j);
+				}
+			}
+			break;
+		case 6:
+			for(int j=0;j<enemies.size();j++){
+				auto &e=enemies[j];
+				if(CheckCollisionCircleLine(e.pos,e.siz,player.pos,Vector2Add(player.pos,Vector2Scale(playerToMouse,10000.0f)))){
+					e.health-=10*player.currentgun.dmg*bdmgmulti*bpershotmulti;
+					EnemyDamaging(e,10*player.currentgun.dmg*bdmgmulti*bpershotmulti,j);
+				}
+			}
+			break;
 		}
+		
 	}
 }
 bool rmv_par(Particle a){
 	return Vector2Distance({0,0},a.spd)<0.4;
 }
 void Move(){
-	if(IsKeyDown(KEY_W)){player.pos.y-=player.spd;}
-	if(IsKeyDown(KEY_S)){player.pos.y+=player.spd;}
-	if(IsKeyDown(KEY_A)){player.pos.x-=player.spd;}
-	if(IsKeyDown(KEY_D)){player.pos.x+=player.spd;}
+	if(IsKeyDown(KEY_W)){player.pos.y-=player.ch.spd;}
+	if(IsKeyDown(KEY_S)){player.pos.y+=player.ch.spd;}
+	if(IsKeyDown(KEY_A)){player.pos.x-=player.ch.spd;}
+	if(IsKeyDown(KEY_D)){player.pos.x+=player.ch.spd;}
 	//CreateParticle(player.pos,2,BLUE);
 	for(auto &e:enemies){
 		Vector2 eoff=Vector2Subtract(player.pos,e.pos);
@@ -426,11 +641,48 @@ void Move(){
 			particles.pop_back();
 		}
 	}
+	if(IsKeyPressed(KEY_O)){
+		dmgnum=dmgnum?0:1;
+	}
+	if(!dmgnum)damagenumbers.clear();
+	int i=0;
+	for(auto &dn:damagenumbers){
+		if(dn.spd.y>-DMGNUM_YSPD){
+			damagenumbers.erase(damagenumbers.begin()+i);
+			continue;
+		}
+		dn.pos=Vector2Add(dn.pos,dn.spd);
+		dn.spd.y+=0.5;
+		i++;
+	}
 }
 void ShopBehavior(){
-	if(CheckCollisionPointRec(GetMousePosition(),shop)&&IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
-		gamestate=(gamestate==RUNNING)?SHOP:RUNNING;
+	if(gamestate==SHOP){
+		if(IsKeyPressed(KEY_SPACE)){
+			player.gold+=100;
+		}
+		DrawText("Shop",100,50,50,BLACK);
+		if(GuiButton(shop,"Exit")){
+			gamestate=RUNNING;
+		}
+		Button chs[108];
+		int choose=-1;
+		for(int i=0;i<min(5,int(goods.size()));i++){
+			chs[i].rec={float(100+250*(i%3)),float(100+150*(i/3)),150,50};
+			chs[i].text=goods[i].gun.name;
+			if(GuiButton(chs[i].rec,chs[i].text.c_str())&&player.gold>=goods[i].cost){
+				choose=i;
+				player.guns.push_back(goods[i].gun);
+				goods.erase(goods.begin()+i);
+				break;
+			}
+		}
+	}else if(gamestate==RUNNING){
+		if(GuiButton(shop,"Shop")){
+			gamestate=SHOP;
+		}
 	}
+	
 }
 bool operator==(Enemy a,Enemy b){
 	return a.pos==b.pos;
@@ -468,7 +720,7 @@ void Damage(){
 			if(CheckCollisionCircles(b.pos,3*bsizemulti,e.pos,e.siz)){
 				f=1;
 				if(b.active){
-					e.health-=b.dmg;
+					EnemyDamaging(e,b.dmg,j);
 					if(bulletType==FIRE){
 						e.btypedur=btypedurat*FPS;
 						e.btypedmg=b.dmg*bdmgmulti*btypedmgmulti/FPS;
@@ -484,44 +736,46 @@ void Damage(){
 						explosions.push_back({b.pos,100*blexplodesizmulti});
 					}
 					player.health+=b.dmg*bhealmulti;
+					if(bhealmulti>0)
+						damagenumbers.push_back({(float)b.dmg*bhealmulti,player.pos,{float(rand()%10-5),DMGNUM_YSPD}});
 					if(player.health>player.MaxHealth){
 						player.health=player.MaxHealth;
 					}
 					b.active=0;
 					b.cross--;
-					if(e.health<=0){
-						CreateParticle(e.pos,e.spd,RED,10,e.siz/5);
-						Sound kil=kills[rand()%2];
-						SetSoundPitch(kil,1.0f+float(rand()%10)/10-0.5f);
-						PlaySound(kil);
-						if(e.type==5&&e.candivid){
-							Enemy divid;
-							float spd=e.spd-1.0f,health=e.MaxHealth*1.5f,siz=e.siz*0.6;
-							divid.spd=spd,divid.health=divid.MaxHealth=health;
-							divid.siz=siz;
-							divid.type=e.type;
-							divid.oldspeed=divid.spd;
-							for(int i=1;i<=4;i++){
-								divid.pos=TurnDeg(e.pos,Vector2Add(e.pos,{0,e.siz}),rand()%360);
-								enemies.push_back(divid);
-							}
-						}
-						if(e.isBoss){
-							player.exp+=10*enemylevel;
-							gamestate=BULLET_UPGRADING;
-						}else{
-							player.exp+=enemylevel;
-						}
-						//auto it = std::find(enemies.begin(), enemies.end(), e);
-						//enemies.erase(it);
-						enemies.erase(enemies.begin()+j);
-						j--;
-						continue;
+					/*if(e.health<=0){
+					CreateParticle(e.pos,e.spd,RED,10,e.siz/5);
+					Sound kil=kills[rand()%2];
+					SetSoundPitch(kil,1.0f+float(rand()%10)/10-0.5f);
+					PlaySound(kil);
+					if(e.type==5&&e.candivid){
+					Enemy divid;
+					float spd=e.spd-1.0f,health=e.MaxHealth*1.5f,siz=e.siz*0.6;
+					divid.spd=spd,divid.health=divid.MaxHealth=health;
+					divid.siz=siz;
+					divid.type=e.type;
+					divid.oldspeed=divid.spd;
+					for(int k=1;k<=4;k++){
+					divid.pos=TurnDeg(e.pos,Vector2Add(e.pos,{0,e.siz}),rand()%360);
+					enemies.push_back(divid);
+					}
+					}
+					if(e.isBoss){
+					player.exp+=10*enemylevel;
+					gamestate=BULLET_UPGRADING;
+					}else{
+					player.exp+=enemylevel;
+					}
+					//auto it = std::find(enemies.begin(), enemies.end(), e);
+					//enemies.erase(it);
+					enemies.erase(enemies.begin()+j);
+					j--;
+					continue;
 					}
 					if(e.type==4){
-						e.spd=e.oldspeed=2*enemylevel;
-						e.spd=min(10.0f,e.spd);
-					}
+					e.spd=e.oldspeed=2*enemylevel;
+					e.spd=min(10.0f,e.spd);
+					}*/
 					if(b.cross<=0){
 						//auto it = std::find(bullets.begin(), bullets.end(), b);
 						//bullets.erase(it);
@@ -543,6 +797,7 @@ void Damage(){
 		}
 		if(bulletType==FIRE&&e.btypedur>0){
 			e.health-=e.btypedmg;
+			damagenumbers.push_back({(float)-e.btypedmg,e.pos,{float(rand()%10-5),DMGNUM_YSPD}});
 			CreateParticle(e.pos,3,ORANGE);
 		}else if(bulletType==ICE&&e.btypedur>0){
 			CreateParticle(e.pos,3,SKYBLUE);
@@ -551,6 +806,7 @@ void Damage(){
 				auto &en=enemies[i];
 				if(CheckCollisionCircles(e.pos,e.siz*10,en.pos,en.siz)){
 					en.health-=e.btypedmg;
+					damagenumbers.push_back({(float)-e.btypedmg,e.pos,{float(rand()%10-5),DMGNUM_YSPD}});
 					DrawLineEx(e.pos,en.pos,5,PURPLE);
 				}
 				e.btypecn--;
@@ -572,8 +828,10 @@ void Damage(){
 		}
 		if(CheckCollisionCircles(player.pos,20,e.pos,e.siz)){
 			player.health-=e.health;
+			damagenumbers.push_back({(float)-e.health,player.pos,{float(rand()%10-5),DMGNUM_YSPD}});
 			if(e.type==4){
 				player.health-=e.health;
+				damagenumbers.push_back({(float)-e.health,player.pos,{float(rand()%10-5),DMGNUM_YSPD}});
 			}
 			if(player.health<=0){
 				gamestate=DEAD;
@@ -586,6 +844,23 @@ void Damage(){
 			enemies.erase(it);
 			continue;
 			}*/
+		}
+	}
+	for(int i=0;i<turrets.size();i++){
+		Turret &t=turrets[i];
+		for(int j=0;j<enemies.size();j++){
+			Enemy &e=enemies[i];
+			if(CheckCollisionCircles(e.pos,e.siz,t.pos,20)){
+				t.des-=e.health/100*FPS;
+				enemies.erase(enemies.begin()+j);
+				j--;
+				if(t.des<0){
+					turrets.erase(turrets.begin()+i);
+					i--;
+					break;
+				}
+				continue;
+			}
 		}
 	}
 }
@@ -636,7 +911,7 @@ void GenerateEnemy(int times){
 		siz=min(siz,40.0f);
 		Enemy e;
 		/**/if(times%int(FPS*60.0)==0||IsKeyPressed(KEY_KP_0)){
-			spd=1,health=health*10,siz=50;
+			spd=1,health=health*15,siz=50*enemylevel;
 			e.isBoss=1;
 			cn=0;
 		}
@@ -652,12 +927,65 @@ void GenerateEnemy(int times){
 	}
 }
 void Shoot(){
+	if(IsKeyPressed(KEY_Q)){
+		player.gunindex--;
+		player.gunindex=max(0,player.gunindex);
+		player.currentgun=player.guns[player.gunindex];
+		player.scd=player.currentgun.shootcd/shotspeedmulti;
+	}
+	if(IsKeyPressed(KEY_E)){
+		player.gunindex++;
+		player.gunindex=min((int)player.guns.size()-1,player.gunindex);
+		player.currentgun=player.guns[player.gunindex];
+		player.scd=player.currentgun.shootcd/shotspeedmulti;
+	}
 	player.scd--;
 	player.scd=(player.scd<0)?0:player.scd;
 	for(auto &b:bullets){
 		b.pos={b.pos.x+b.xspd,b.pos.y+b.yspd};
 		b.des--;
-		bullets.erase(remove_if(bullets.begin(),bullets.end(),rmv),bullets.end());
+		bullets.erase(remove_if(bullets.begin(),bullets.end(),rmv<Bullet>),bullets.end());
+	}
+	for(auto &t:turrets){
+		t.scd--;
+		t.scd=max(0,t.scd);
+		t.des--;
+		turrets.erase(remove_if(turrets.begin(),turrets.end(),rmv<Turret>),turrets.end());
+		if(t.scd==0){
+			float mindist=100000;
+			int minidx=-1;
+			int i=0;
+			for(auto e:enemies){
+				if(Vector2Distance(e.pos,t.pos)<mindist){
+					mindist=Vector2Distance(e.pos,t.pos);
+					minidx=i;
+				}
+				i++;
+			}
+			if(enemies.size()>0){
+				Vector2 mousepos=enemies[minidx].pos;
+				Vector2 moff={mousepos.x-t.pos.x,mousepos.y-t.pos.y};
+				double dist=sqrt(moff.x*moff.x+moff.y*moff.y);
+				double mult=player.currentgun.bulletspeed/dist*1.0;
+				float xs=moff.x*mult,ys=moff.y*mult;
+				Bullet b={t.pos,xs,ys};
+				b.spd=player.currentgun.bulletspeed;
+				b.dmg=player.currentgun.dmg*bdmgmulti;
+				b.cross=bcrossmulti;
+				float deg=bpershotmulti/2*spread;
+				if(bpershotmulti%2==0){
+					deg-=spread/2;
+				}
+				for(int i=1;i<=bpershotmulti;i++){
+					Vector2 spd=TurnDeg({0,0},{xs,ys},deg);
+					deg-=spread;
+					b.xspd=spd.x,b.yspd=spd.y;
+					bullets.push_back(b);
+				}
+				t.scd=player.currentgun.shootcd/shotspeedmulti;
+			}
+			
+		}
 	}
 	if((player.currentgun.continuous?IsMouseButtonDown(MOUSE_BUTTON_LEFT):IsMouseButtonPressed(MOUSE_BUTTON_LEFT))&&player.scd==0){
 		Vector2 mousepos=GetMousePosition();
@@ -665,7 +993,7 @@ void Shoot(){
 		double dist=sqrt(moff.x*moff.x+moff.y*moff.y);
 		double mult=player.currentgun.bulletspeed/dist*1.0;
 		float xs=moff.x*mult,ys=moff.y*mult;
-		Bullet b={player.pos,xs,ys,FPS*10};
+		Bullet b={player.pos,xs,ys};
 		b.spd=player.currentgun.bulletspeed;
 		b.dmg=player.currentgun.dmg*bdmgmulti;
 		b.cross=bcrossmulti;
@@ -720,9 +1048,12 @@ void HandleUpgrade(){
 		bhealmulti=10;
 		bcrossmulti=10;
 		player.currentgun={"MAN",FPS/60,14,1,100};
+		player.guns.push_back(player.currentgun);
 	}
 	else if(IsKeyDown(KEY_SIX)&&IsKeyDown(KEY_ONE)){
 		player.currentgun={"sixone",FPS/60,6,1,99};
+		player.guns.push_back(player.currentgun);
+		player.gunindex=player.guns.size()-1;
 	}
 	if(player.exp>=player.upexp){
 		SetSoundPitch(upgr,1.0f+float(rand()%10)/10-0.5f);
@@ -734,25 +1065,39 @@ void HandleUpgrade(){
 		switch (player.level) {
 		case 3:
 			player.currentgun={"Deagle",FPS/8,13,0,20};
+			player.guns.push_back(player.currentgun);
+			player.gunindex=player.guns.size()-1;
 			break;
 		case 5:
 			player.currentgun={"wxyyalg",FPS/7,10,1,16};
+			player.guns.push_back(player.currentgun);
+			player.gunindex=player.guns.size()-1;
 			break;
 		case 9:
 			player.currentgun={"Uzi",FPS/8,14,1,15};
+			player.guns.push_back(player.currentgun);
+			player.gunindex=player.guns.size()-1;
 			break;
 		case 13:
 			player.currentgun={"MP7",FPS/10,14,1,13};
+			player.guns.push_back(player.currentgun);
+			player.gunindex=player.guns.size()-1;
 			break;
 		case 17:
 			player.currentgun={"AK47",FPS/9,12,1,16};
+			player.guns.push_back(player.currentgun);
+			player.gunindex=player.guns.size()-1;
 			break;
 		case 22:
 			player.currentgun={"M250",FPS/12,13,1,20};
+			player.guns.push_back(player.currentgun);
+			player.gunindex=player.guns.size()-1;
 			break;
 		case 30:
 			bpershotmulti+=2;
 			player.currentgun={"AA12",FPS/15,14,1,25};
+			player.guns.push_back(player.currentgun);
+			player.gunindex=player.guns.size()-1;
 			break;
 		}
 	}
@@ -782,7 +1127,7 @@ void GenerateItems(int times){
 				player.MaxHealth+=player.MaxHealth/25*enemylevel*enemylevel;
 				break;
 			case INCREASE_SPEED:
-				player.spd+=0.2;
+				player.ch.spd+=0.2;
 				break;
 			case INCREASE_BULLET_DAMAGE:
 				bdmgmulti+=0.02;
@@ -835,7 +1180,7 @@ void DrawUpgrade(bool flag){
 			break;
 		case INCREASE_SPEED:
 			text="Increase speed\n";
-			text+=TextFormat("%.1f -> %.1f",player.spd,player.spd+1);
+			text+=TextFormat("%.1f -> %.1f",player.ch.spd,player.ch.spd+1);
 			break;
 		case INCREASE_BULLET_DAMAGE:
 			text="Increase bullet damage\n";
@@ -875,7 +1220,7 @@ void DrawUpgrade(bool flag){
 					player.MaxHealth+=200*enemylevel*enemylevel;
 					break;
 				case INCREASE_SPEED:
-					player.spd+=1;
+					player.ch.spd+=1;
 					break;
 				case INCREASE_BULLET_DAMAGE:
 					bdmgmulti+=0.1;
@@ -902,26 +1247,37 @@ void DrawUpgrade(bool flag){
 	}
 }
 int main(){
-	unsigned long long gametime=0;
 	srand(time(0));
 	InitAudioDevice();
 	upgr=LoadSound("sounds/sound_upgrade.mp3");
 	SetSoundVolume(wxyy, 1.0f);
 	SetTargetFPS(FPS);
 //	Sound bgm=LoadSound("sya.mp3");
-	LoadSongs(bgms,"songs/bgm_",4);
-	LoadSongs(kills,"sounds/sound_kill_",2);
+	LoadSongs(bgms,"songs/bgm_",0);
+	LoadSongs(kills,"sounds/sound_kill_",0);
 	SetSoundVolume(bgms[0],0.1f);
 	SetSoundVolume(bgms[1],0.6f);
 	SetSoundVolume(bgms[2],0.2f);
 	SetSoundVolume(bgms[3],0.4f);
 	SetSoundVolume(kills[1],0.3f);
 //	PlaySound(bgm);
+	Init();
 	InitWindow(SCREEN_WIDTH,SCREEN_HEIGHT,"zsjy is game 张顺甲鱼是游戏");
 	bool flag=0;
 	PlaySound(bgms[rand()%4]);
+	GuiSetStyle(DEFAULT,TEXT_SIZE,20);
+	random_shuffle(goods.begin(),goods.end());
 	while(!WindowShouldClose()){
-		if(gamestate==RUNNING){
+		if(gamestate==START){
+			BeginDrawing();
+			DrawStartMenu();
+			EndDrawing();
+		}else if(gamestate==CHOOSE_CHARACTER){
+			BeginDrawing();
+			ClearBackground(RAYWHITE);
+			DrawCharacterMenu();
+			EndDrawing();
+		}else if(gamestate==RUNNING){
 			gametime++;
 			flag=0;
 			GenerateEnemy(gametime);
@@ -954,8 +1310,7 @@ int main(){
 				return 0;
 			}
 			if(IsKeyPressed(KEY_R)){
-				system("start main.exe");
-				return 0;
+				Init();
 			}
 			BeginDrawing();
 			ClearBackground(RED);
@@ -985,8 +1340,8 @@ int main(){
 		}
 	}
 	UnloadSound(upgr);
-	UnloadSongs(bgms,4);
-	UnloadSongs(kills,2);
+	UnloadSongs(bgms,0);
+	UnloadSongs(kills,0);
 //	UnloadImage(player.img);
 	return 0;
 }
